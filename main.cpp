@@ -47,18 +47,52 @@ void add_row(const int ngens, const std::vector<Gens> &rels,
 void learn(Table &coset, const std::vector<Gens> &rels,
     std::vector<Table> &reltables, Table &starts, Table &ends) {
 
-//      set learning
-//      while learning
-//          not learning
-//          for each table
-//              for each row of the table
-//                  load left and right from starts/ends
-//                  if the left and right already meet, skip
-//                  try to deduce more about the row from the left (don't pass right)
-//                  try to deduce more about the row from the right (don't pass left)
-//                  if the left and right meet
-//                      set learning
-//                      write to the coset table
+    unsigned int nrels = rels.size();
+
+    while (true) {
+        bool complete = true;
+
+        for (unsigned int r = 0; r < nrels; ++r) {
+            auto &table = reltables[r];
+            const auto &rel = rels[r];
+
+            for (unsigned int c = 0; c < table.size(); c++) {
+                auto &row = table[c];
+                auto s = starts[r][c];
+                auto e = ends[r][c];
+
+                if (s == e - 1) continue;
+
+                while (row[s] == -1) {
+                    int &lookup = coset[row[s]][rel[s]];
+                    if (lookup < 0) break;
+
+                    row[s] = lookup;
+                    s++;
+                }
+
+                while (row[e] == -1) {
+                    int &lookup = coset[row[e]][rel[e - 1]];
+                    if (lookup < 0) break;
+
+                    row[e] = lookup;
+                    e--;
+                }
+
+                if (s == e - 1) {
+                    complete = false;
+
+                    coset[row[s]][rel[s]] = rel[row[e]];
+                    coset[row[e]][rel[s]] = rel[row[s]];
+                }
+
+                starts[r][c] = s;
+                ends[r][c] = e;
+            }
+        }
+
+        if (complete) break;
+    }
 }
 
 Table solve_tc(int ngens, const Gens &subgens, const std::vector<Gens> &rels) {
