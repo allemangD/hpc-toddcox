@@ -3,6 +3,8 @@
 #include <iomanip>
 #include <chrono>
 
+#include <omp.h>
+
 using Gens=std::vector<int>;
 using Table=std::vector<Gens>;
 
@@ -79,6 +81,7 @@ void learn(Table &coset, const std::vector<Gens> &rels,
     while (true) {
         bool complete = true;
 
+#pragma omp parallel for schedule(static, 1) reduction(&:complete)
         for (unsigned int r = 0; r < nrels; ++r) {
             auto &table = reltables[r];
             const auto &rel = rels[r];
@@ -146,21 +149,64 @@ Table solve_tc(int ngens, const Gens &subgens, const std::vector<Gens> &rels) {
     return cosets;
 }
 
-int main() {
-    auto s = std::chrono::system_clock::now();
-    auto cosets = solve_tc(4, {}, {
-        {0, 1, 0, 1, 0, 1, 0, 1, 0, 1},
-        {1, 2, 1, 2, 1, 2},
-        {2, 3, 2, 3, 2, 3},
-        {0, 2, 0, 2},
-        {0, 3, 0, 3},
-        {1, 3, 1, 3},
-    });
-    auto e = std::chrono::system_clock::now();
-    std::chrono::duration<float> diff = e - s;
-    std::cout << diff.count() << "s" << std::endl;
+struct Mult {
+    int from, to, multiplicity;
+};
 
-//    pp(cosets);
+Table mults(std::vector<Mult> ms) {
+    Table res;
+    for (const auto &m : ms) {
+	int N = res.size();
+        res.emplace_back(m.multiplicity * 2, m.to);
+        for (int i = 0; i < m.multiplicity * 2; i += 2) {
+            res[N][i] = m.from;
+        }
+    }
+    return res;
+}
+
+Table torus(int res) {
+    return mults({
+        {0, 1, res},
+        {1, 2, 2},
+        {2, 3, res},
+        {0, 2, 2},
+        {0, 3, 2},
+        {1, 3, 2},
+    });
+}
+
+/*
+ * duododeca
+ * mults({
+ *      {0, 1, 5},
+ *      {1, 2, 3},
+ *      {2, 3, 3},
+ *      {0, 2, 2},
+ *      {0, 3, 2},
+ *      {1, 3, 2},
+ *  })
+ */
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        std::cerr << "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" << std::endl;
+        std::cerr << "gimme more ~~tendies~~ arguments" << std::endl;
+        return 1;
+    }
+
+    int N = std::strtol(argv[1], nullptr, 10);
+
+    const Table &rels = torus(N);
+
+    auto s = std::chrono::system_clock::now();
+    auto cosets = solve_tc(4, {}, rels);
+    auto e = std::chrono::system_clock::now();
+
+    std::chrono::duration<float> diff = e - s;
+    size_t order = cosets.size();
+
+    std::cout << N << "," << diff.count() << "," << order << std::endl;
 
     return 0;
 }
