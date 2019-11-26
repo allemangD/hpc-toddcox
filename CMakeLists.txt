@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(hpc)
 
-set(CMAKE_CXX_FLAGS "-std=gnu++11 -fopenmp -O3")
+add_subdirectory(common)
 
-add_executable(hpc main.cpp)
+add_subdirectory(cpu-slo)
+add_subdirectory(cpu-opt)
