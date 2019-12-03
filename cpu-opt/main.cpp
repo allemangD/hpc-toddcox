@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <immintrin.h>
 
 #include <iostream>
 #include <vector>
@@ -7,11 +8,17 @@
 
 #include <omp.h>
 
+using Ind=int;
+
 using Gen=int;
 using Gens=std::vector<Gen>;
 using Table=std::vector<Gens>;
 
 using Cos=int;
+
+/*
+ * COXETER GROUP DEFINITIONS
+ */
 
 const size_t ALIGN_SIZE=64;
 const size_t GENS_PER_LINE=ALIGN_SIZE/sizeof(Gen);
@@ -137,6 +144,31 @@ Coxeter E8() {
     });
 }
 
+/*
+ * LEARNING / RelTable DIFINITIONS
+ */
+
+struct RelTable {
+    std::vector<Cos> start_cosets;
+    std::vector<Cos> end_cosets;
+    std::vector<Ind> start_inds;
+    std::vector<Ind> end_inds;
+    int num_rows;
+    Gen gen[2];
+    Ind end_ind;
+    RelTable(Gen gen0, Gen gen1, Ind end_ind): end_ind(end_ind), num_rows(0) {
+        gen[0] = gen0;
+        gen[1] = gen1;
+    }
+    void add_row() {
+        start_cosets.push_back(num_rows);
+        end_cosets.push_back(num_rows);
+        start_inds.push_back(0);
+        end_inds.push_back(end_ind);
+        num_rows++;
+    }
+};
+
 void pp(const Gens &g, int w) {
     for (const auto &e : g) {
         std::cerr << std::setw(w) << e << " ";
@@ -155,30 +187,18 @@ void pp(const Table &t) {
 }
 
 void add_row(const int ngens, const Coxeter &cox,
-    Table &cosets, std::vector<Table> &reltables,
-    Table &starts, Table &ends) {
+    Table &cosets, std::vector<RelTable> &reltables) {
 
     int C = cosets.size();
 
     cosets.emplace_back(ngens, -1);
 
-    for (unsigned int i = 0; i < cox.nrels; ++i) {
-        auto &table = reltables[i];
-
-        unsigned int R = cox.size[i];
-
-        table.emplace_back(R + 1, -1);
-        table[C][0] = C;
-        table[C][R] = C;
-
-        starts[i].push_back(0);
-        ends[i].push_back(R);
-    }
+    for (RelTable &rt : reltables)
+        rt.add_row();
 }
 
 int add_coset(const int ngens, const Coxeter &cox,
-    Table &cosets, std::vector<Table> &reltables,
-    Table &starts, Table &ends,
+    Table &cosets, std::vector<RelTable> &reltables,
     int coset_scan_hint) {
 
     int C = cosets.size();
@@ -188,7 +208,7 @@ int add_coset(const int ngens, const Coxeter &cox,
         for (int g = 0; g < ngens; ++g) {
             if (row[g] == -1) {
                 row[g] = C;
-                add_row(ngens, cox, cosets, reltables, starts, ends);
+                add_row(ngens, cox, cosets, reltables);
                 cosets[C][g] = c;
                 return c;
             }
@@ -203,7 +223,7 @@ int add_coset(const int ngens, const Coxeter &cox,
  * learn until it can't
  */
 void learn(Table &coset, const Coxeter &cox,
-    std::vector<Table> &reltables, Table &starts, Table &ends) {
+    std::vector<RelTable> &reltables) {
 
     unsigned int nrels = cox.nrels;
 
@@ -212,44 +232,55 @@ void learn(Table &coset, const Coxeter &cox,
 
         Gen gens[2];
 #pragma omp parallel for schedule(static, 1) reduction(&:complete) private(gens)
-        for (unsigned int r = 0; r < nrels; ++r) {
+        for (unsigned int r = 0; r < nrels; ++r) { 
             auto &table = reltables[r];
-            gens[0] = cox.gen[0][r];
-            gens[1] = cox.gen[1][r];
+            gens[0] = table.gen[0];
+            gens[1] = table.gen[1];
 
-            for (unsigned int c = 0; c < table.size(); c++) {
-                auto &row = table[c];
-                auto s = starts[r][c];
-                auto e = ends[r][c];
+            for (unsigned int c = 0; c < table.num_rows; c++) {
+                auto s_i = table.start_inds[c];
+                auto e_i = table.end_inds[c];
 
-                if (s == e - 1) continue;
+                if (s_i == e_i) continue;
 
-                while (row[s + 1] == -1) {
-                    const int &lookup = coset[row[s]][gens[s&1]];
+                auto s_c = table.start_cosets[c];
+                auto e_c = table.end_cosets[c];
+
+                while (s_i < e_i) {
+                    const int &lookup = coset[s_c][gens[s_i&1]];
                     if (lookup < 0) break;
 
-                    s++;
-                    row[s] = lookup;
+                    s_i++;
+                    s_c = lookup;
+
+                    if (s_c > c)
+                        table.start_inds[s_c] = table.end_inds[s_c];
                 }
 
-                while (row[e - 1] == -1) {
-                    const int &lookup = coset[row[e]][gens[(e - 1)&1]];
+                table.start_inds[c] = s_i;
+                table.start_cosets[c] = s_c;
+
+                while (s_i < e_i) {
+                    const int &lookup = coset[e_c][gens[e_i&1]];
                     if (lookup < 0) break;
 
-                    e--;
-                    row[e] = lookup;
+                    e_i--;
+                    e_c = lookup;
+
+                    if (e_c > c)
+                        table.start_inds[e_c] = table.end_inds[e_c];
                 }
 
-                if (s == e - 1) {
+                table.end_inds[c] = e_i;
+                table.end_cosets[c] = e_c;
+
+                if (s_i == e_i) {
                     complete = false;
 
-                    const int &gen = gens[s&1];
-                    coset[row[s]][gen] = row[e];
-                    coset[row[e]][gen] = row[s];
+                    const int &gen = gens[s_i&1];
+                    coset[s_c][gen] = e_c;
+                    coset[e_c][gen] = s_c;
                 }
-
-                starts[r][c] = s;
-                ends[r][c] = e;
             }
         }
 
@@ -259,22 +290,23 @@ void learn(Table &coset, const Coxeter &cox,
 
 Table solve_tc(int ngens, const Gens &subgens, const Coxeter &cox) {
     Table cosets;
-    std::vector<Table> reltables(cox.nrels);
+    std::vector<RelTable> reltables;
 
-    // storing progress for each relation table row
-    Table starts(cox.nrels); // [rel_table][coset]
-    Table ends(cox.nrels);
+    for (int i=0; i<cox.nrels; i++) {
+        reltables.emplace_back(cox.gen[0][i], cox.gen[1][i], cox.size[i]-1);
+    }
 
     // set up initial coset
-    add_row(ngens, cox, cosets, reltables, starts, ends);
+    add_row(ngens, cox, cosets, reltables);
     for (const auto &gen : subgens) {
         cosets[0][gen] = 0;
     }
 
     int coset_scan_hint = 0;
+    char a;
     while (coset_scan_hint >= 0) {
-        learn(cosets, cox, reltables, starts, ends);
-        coset_scan_hint = add_coset(ngens, cox, cosets, reltables, starts, ends, coset_scan_hint);
+        learn(cosets, cox, reltables);
+        coset_scan_hint = add_coset(ngens, cox, cosets, reltables, coset_scan_hint);
     }
 
     return cosets;
