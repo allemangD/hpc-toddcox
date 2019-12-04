@@ -10,6 +10,8 @@ using Table=std::vector<Gens>;
 
 struct Mult {
     int from, to, multiplicity;
+    Mult() {}
+    Mult(int from, int to, int multiplicity): from(from), to(to), multiplicity(multiplicity) {}
 };
 
 Table mults(const std::vector<Mult>& ms) {
@@ -55,11 +57,19 @@ std::vector<Mult> ezmults(int ngens, const std::vector<Mult> &ms) {
  * Order 4*res*res
  */
 std::pair<Table, int> torus(int res) {
-
     return std::make_pair(mults(ezmults(4, {
         {0, 1, res},
         {2, 3, res},
     })), 4);
+}
+
+std::pair<Table, int> hypercube(int dim) {
+    std::vector<Mult> hc_mults;
+    hc_mults.emplace_back(0,1,4);
+    for (int i = 2; i < dim; i++) {
+        hc_mults.emplace_back(i-1, i, 3);
+    }
+    return std::make_pair(mults(ezmults(dim,hc_mults)), dim); 
 }
 
 /*
@@ -285,6 +295,14 @@ int main(int argc, const char *argv[]) {
         break;
     case 4:
         res = E8();
+        break;
+    case 5:
+        if (argc < 3) {
+            std::cerr << "Must provide a dimension for hypercube!" << std::endl;
+            return 3;
+        }
+        arg = std::strtol(argv[2], nullptr, 10);
+        res = hypercube(arg);
         break;
     default:
         std::cerr << "Not a valid type!" << std::endl;

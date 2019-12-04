@@ -49,6 +49,8 @@ struct Coxeter {
 
 struct Mult {
     int from, to, multiplicity;
+    Mult() {}
+    Mult(int from, int to, int multiplicity): from(from), to(to), multiplicity(multiplicity) {}
 };
 
 Coxeter make_coxeter(int ngens, const std::vector<Mult> &ms) {
@@ -89,6 +91,15 @@ Coxeter torus(int res) {
         {0, 1, res},
         {2, 3, res},
     });
+}
+
+Coxeter hypercube(int dim) {
+    std::vector<Mult> mults;
+    mults.emplace_back(0,1,4);
+    for (int i = 2; i < dim; i++) {
+        mults.emplace_back(i-1, i, 3);
+    }
+    return make_coxeter(dim, mults);
 }
 
 /*
@@ -265,9 +276,6 @@ void learn(Table &coset, const Coxeter &cox,
             for (unsigned int c = 0; c < table.num_rows; c++) {
                 auto s_i = table.start_inds[c];
                 auto e_i = table.end_inds[c];
-
-                if (s_i == e_i) continue;
-
                 auto s_c = table.start_cosets[c];
                 auto e_c = table.end_cosets[c];
                 auto i_c = table.init_cosets[c];
@@ -382,6 +390,14 @@ Coxeter proc_args(int argc, const char* argv[]) {
     case 4:
         std::cout << -1 << ',';
         return E8();
+    case 5:
+        if (argc < 3) {
+            std::cerr << "Must provide a dimension for hypercube!" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        arg = std::strtol(argv[2], nullptr, 10);
+        std::cout << arg << ',';
+        return hypercube(arg);
     }
 
     std::cerr << "Not a valid type!" << std::endl;
