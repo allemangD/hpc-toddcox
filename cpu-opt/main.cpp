@@ -149,6 +149,8 @@ Coxeter E8() {
  */
 
 struct RelTable {
+    std::vector<int> coset_poss;
+    std::vector<Cos> init_cosets;
     std::vector<Cos> start_cosets;
     std::vector<Cos> end_cosets;
     std::vector<Ind> start_inds;
@@ -160,12 +162,35 @@ struct RelTable {
         gen[0] = gen0;
         gen[1] = gen1;
     }
-    void add_row() {
-        start_cosets.push_back(num_rows);
-        end_cosets.push_back(num_rows);
+    void add_row(Cos new_coset) {
+        coset_poss.push_back(num_rows);
+        init_cosets.push_back(new_coset);
+        start_cosets.push_back(new_coset);
+        end_cosets.push_back(new_coset);
         start_inds.push_back(0);
         end_inds.push_back(end_ind);
         num_rows++;
+    }
+    void rem_row(int idx) {
+        num_rows--;
+
+        coset_poss[init_cosets[num_rows]] = idx;
+        coset_poss[init_cosets[idx]] = -1;
+
+        init_cosets[idx] = init_cosets[num_rows];
+        init_cosets.pop_back();
+
+        start_cosets[idx] = start_cosets[num_rows];
+        start_cosets.pop_back();
+
+        end_cosets[idx] = end_cosets[num_rows];
+        end_cosets.pop_back();
+
+        start_inds[idx] = start_inds[num_rows];
+        start_inds.pop_back();
+
+        end_inds[idx] = end_inds[num_rows];
+        end_inds.pop_back();
     }
 };
 
@@ -194,7 +219,7 @@ void add_row(const int ngens, const Coxeter &cox,
     cosets.emplace_back(ngens, -1);
 
     for (RelTable &rt : reltables)
-        rt.add_row();
+        rt.add_row(C);
 }
 
 int add_coset(const int ngens, const Coxeter &cox,
@@ -245,6 +270,7 @@ void learn(Table &coset, const Coxeter &cox,
 
                 auto s_c = table.start_cosets[c];
                 auto e_c = table.end_cosets[c];
+                auto i_c = table.init_cosets[c];
 
                 while (s_i < e_i) {
                     const int &lookup = coset[s_c][gens[s_i&1]];
@@ -253,8 +279,11 @@ void learn(Table &coset, const Coxeter &cox,
                     s_i++;
                     s_c = lookup;
 
-                    if (s_c > c)
-                        table.start_inds[s_c] = table.end_inds[s_c];
+                    if (s_c > i_c) {
+                        int idx = table.coset_poss[s_c];
+                        if (idx >= 0)
+                            table.rem_row(idx); 
+                    }
                 }
 
                 table.start_inds[c] = s_i;
@@ -267,8 +296,11 @@ void learn(Table &coset, const Coxeter &cox,
                     e_i--;
                     e_c = lookup;
 
-                    if (e_c > c)
-                        table.start_inds[e_c] = table.end_inds[e_c];
+                    if (e_c > i_c) {
+                        int idx = table.coset_poss[e_c];
+                        if (idx >= 0)
+                            table.rem_row(idx);
+                    }
                 }
 
                 table.end_inds[c] = e_i;
@@ -280,6 +312,9 @@ void learn(Table &coset, const Coxeter &cox,
                     const int &gen = gens[s_i&1];
                     coset[s_c][gen] = e_c;
                     coset[e_c][gen] = s_c;
+
+                    table.rem_row(c);
+                    c--;
                 }
             }
         }
