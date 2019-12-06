@@ -205,6 +205,20 @@ struct RelTable {
     }
 };
 
+struct CosetTable {
+    std::vector<Cos> table;
+    int num_cosets;
+    int ngens;
+    CosetTable (int ngens): ngens(ngens), num_cosets(0) {}
+    void add_row() {
+        num_cosets++;
+        table.resize(table.size()+ngens, -1);
+    }
+    inline Cos &operator[](int idx) {
+        return table[idx];
+    }
+};
+
 void pp(const Gens &g, int w) {
     for (const auto &e : g) {
         std::cerr << std::setw(w) << e << " ";
@@ -222,32 +236,34 @@ void pp(const Table &t) {
     }
 }
 
-void add_row(const int ngens, const Coxeter &cox,
-    Table &cosets, std::vector<RelTable> &reltables) {
+void add_row(const Coxeter &cox,
+    CosetTable &cosets, std::vector<RelTable> &reltables) {
 
-    int C = cosets.size();
+    int C = cosets.num_cosets;
 
-    cosets.emplace_back(ngens, -1);
+    cosets.add_row();
 
     for (RelTable &rt : reltables)
         rt.add_row(C);
 }
 
-int add_coset(const int ngens, const Coxeter &cox,
-    Table &cosets, std::vector<RelTable> &reltables,
+int add_coset(const Coxeter &cox,
+    CosetTable &cosets, std::vector<RelTable> &reltables,
     int coset_scan_hint) {
 
-    int C = cosets.size();
+    const int C = cosets.num_cosets;
+    const int ngens = cox.ngens;
 
     for (int c = coset_scan_hint; c < C; ++c) {
-        std::vector<int> &row = cosets[c];
+        int idx = c*ngens;
         for (int g = 0; g < ngens; ++g) {
-            if (row[g] == -1) {
-                row[g] = C;
-                add_row(ngens, cox, cosets, reltables);
-                cosets[C][g] = c;
+            if (cosets[idx] == -1) {
+                cosets[idx] = C;
+                add_row(cox, cosets, reltables);
+                cosets[C*ngens+g] = c;
                 return c;
             }
+            idx++;
         }
     }
 
@@ -255,13 +271,18 @@ int add_coset(const int ngens, const Coxeter &cox,
 }
 
 
+//#define __AVX2__
+
+#ifndef __AVX2__
+
 /**
  * learn until it can't
  */
-void learn(Table &coset, const Coxeter &cox,
+void learn(const Coxeter &cox, CosetTable &cosets,
     std::vector<RelTable> &reltables) {
 
-    unsigned int nrels = cox.nrels;
+    const int nrels = cox.nrels;
+    const int ngens = cox.ngens;
 
     while (true) {
         bool complete = true;
@@ -281,7 +302,7 @@ void learn(Table &coset, const Coxeter &cox,
                 auto i_c = table.init_cosets[c];
 
                 while (s_i < e_i) {
-                    const int &lookup = coset[s_c][gens[s_i&1]];
+                    const int lookup = cosets[s_c*ngens + gens[s_i&1]];
                     if (lookup < 0) break;
 
                     s_i++;
@@ -298,7 +319,7 @@ void learn(Table &coset, const Coxeter &cox,
                 table.start_cosets[c] = s_c;
 
                 while (s_i < e_i) {
-                    const int &lookup = coset[e_c][gens[e_i&1]];
+                    const int lookup = cosets[e_c*ngens + gens[e_i&1]];
                     if (lookup < 0) break;
 
                     e_i--;
@@ -317,9 +338,9 @@ void learn(Table &coset, const Coxeter &cox,
                 if (s_i == e_i) {
                     complete = false;
 
-                    const int &gen = gens[s_i&1];
-                    coset[s_c][gen] = e_c;
-                    coset[e_c][gen] = s_c;
+                    const int gen = gens[s_i&1];
+                    cosets[s_c*ngens + gen] = e_c;
+                    cosets[e_c*ngens + gen] = s_c;
 
                     table.rem_row(c);
                     c--;
@@ -331,8 +352,12 @@ void learn(Table &coset, const Coxeter &cox,
     }
 }
 
-Table solve_tc(int ngens, const Gens &subgens, const Coxeter &cox) {
-    Table cosets;
+#else
+
+#endif
+
+CosetTable solve_tc(const Coxeter &cox, const Gens &subgens) {
+    CosetTable cosets(cox.ngens);
     std::vector<RelTable> reltables;
 
     for (int i=0; i<cox.nrels; i++) {
@@ -340,16 +365,16 @@ Table solve_tc(int ngens, const Gens &subgens, const Coxeter &cox) {
     }
 
     // set up initial coset
-    add_row(ngens, cox, cosets, reltables);
+    add_row(cox, cosets, reltables);
     for (const auto &gen : subgens) {
-        cosets[0][gen] = 0;
+        cosets[gen] = 0;
     }
 
     int coset_scan_hint = 0;
     char a;
     while (coset_scan_hint >= 0) {
-        learn(cosets, cox, reltables);
-        coset_scan_hint = add_coset(ngens, cox, cosets, reltables, coset_scan_hint);
+        learn(cox, cosets, reltables);
+        coset_scan_hint = add_coset(cox, cosets, reltables, coset_scan_hint);
     }
 
     return cosets;
@@ -408,11 +433,11 @@ int main(int argc, const char *argv[]) {
     Coxeter cox = proc_args(argc, argv);
 
     auto s = std::chrono::system_clock::now();
-    auto cosets = solve_tc(cox.ngens, {}, cox);
+    auto cosets = solve_tc(cox, {});
     auto e = std::chrono::system_clock::now();
 
     std::chrono::duration<float> diff = e - s;
-    size_t order = cosets.size();
+    size_t order = cosets.num_cosets;
 
     // type,arg,ngens,time,order
     std::cout << cox.ngens << ',' << diff.count() << ',' << order << std::endl;
