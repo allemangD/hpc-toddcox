@@ -273,7 +273,7 @@ int main(int argc, const char *argv[]) {
     }
 
     int type = std::strtol(argv[1], nullptr, 10);
-    int arg = 0;
+    int arg = -1;
     std::pair<Table, int> res;
     switch (type) {
     case 0:
@@ -320,7 +320,7 @@ int main(int argc, const char *argv[]) {
     size_t order = cosets.size();
 
     // ngens,type,arg,time,order
-    std::cout << ngens << ',' << type << ',' << arg << ',' << diff.count() << ',' << order << std::endl;
+    std::cout << type << ',' << arg << ',' << ngens << ',' << diff.count() << ',' << order << std::endl;
 
     return 0;
 }
