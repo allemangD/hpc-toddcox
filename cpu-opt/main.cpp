@@ -271,10 +271,6 @@ int add_coset(const Coxeter &cox,
 }
 
 
-//#define __AVX2__
-
-#ifndef __AVX2__
-
 /**
  * learn until it can't
  */
@@ -301,9 +297,13 @@ void learn(const Coxeter &cox, CosetTable &cosets,
                 auto e_c = table.end_cosets[c];
                 auto i_c = table.init_cosets[c];
 
+                int g_i = s_i & 1;
+                Gen g = gens[g_i];
                 while (s_i < e_i) {
-                    const int lookup = cosets[s_c*ngens + gens[s_i&1]];
+                    const int lookup = cosets[g + s_c*ngens];
                     if (lookup < 0) break;
+                    g_i = 1-g_i;
+                    g = gens[g_i];
 
                     s_i++;
                     s_c = lookup;
@@ -318,9 +318,13 @@ void learn(const Coxeter &cox, CosetTable &cosets,
                 table.start_inds[c] = s_i;
                 table.start_cosets[c] = s_c;
 
+                g_i = e_i & 1;
+                g = gens[g_i];
                 while (s_i < e_i) {
-                    const int lookup = cosets[e_c*ngens + gens[e_i&1]];
+                    const int lookup = cosets[g + e_c*ngens];
                     if (lookup < 0) break;
+                    g_i = 1-g_i;
+                    g = gens[g_i];
 
                     e_i--;
                     e_c = lookup;
@@ -351,10 +355,6 @@ void learn(const Coxeter &cox, CosetTable &cosets,
         if (complete) break;
     }
 }
-
-#else
-
-#endif
 
 CosetTable solve_tc(const Coxeter &cox, const Gens &subgens) {
     CosetTable cosets(cox.ngens);
