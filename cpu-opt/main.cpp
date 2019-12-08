@@ -253,17 +253,16 @@ int add_coset(const Coxeter &cox,
 
     const int C = cosets.num_cosets;
     const int ngens = cox.ngens;
-
+    
+    int idx = coset_scan_hint*ngens;
     for (int c = coset_scan_hint; c < C; ++c) {
-        int idx = c*ngens;
-        for (int g = 0; g < ngens; ++g) {
+        for (int g = 0; g < ngens; ++g, ++idx) {
             if (cosets[idx] == -1) {
                 cosets[idx] = C;
                 add_row(cox, cosets, reltables);
                 cosets[C*ngens+g] = c;
                 return c;
             }
-            idx++;
         }
     }
 
