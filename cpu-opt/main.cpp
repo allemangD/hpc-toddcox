@@ -273,7 +273,7 @@ int add_coset(const Coxeter &cox,
 /**
  * learn until it can't
  */
-void learn(const Coxeter &cox, CosetTable &cosets,
+inline void learn(const Coxeter &cox, CosetTable &cosets,
     std::vector<RelTable> &reltables) {
 
     const int nrels = cox.nrels;
