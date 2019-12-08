@@ -280,79 +280,76 @@ void learn(const Coxeter &cox, CosetTable &cosets,
     const int nrels = cox.nrels;
     const int ngens = cox.ngens;
 
-    while (true) {
-        bool complete = true;
+    Gen gens[2];
+    Ind s_i, e_i;
+    Cos s_c, e_c, i_c;
+    int g_i;
+    Gen g;
+    int lookup, idx;
+#pragma omp parallel for schedule(dynamic, 1) private(gens, s_i, e_i, s_c, e_c, i_c, g_i, g, lookup, idx)
+    for (unsigned int r = 0; r < nrels; ++r) { 
+        auto &table = reltables[r];
+        gens[0] = table.gen[0];
+        gens[1] = table.gen[1];
 
-        Gen gens[2];
-#pragma omp parallel for schedule(static, 1) reduction(&:complete) private(gens)
-        for (unsigned int r = 0; r < nrels; ++r) { 
-            auto &table = reltables[r];
-            gens[0] = table.gen[0];
-            gens[1] = table.gen[1];
+        for (unsigned int c = 0; c < table.num_rows; c++) {
+            s_i = table.start_inds[c];
+            e_i = table.end_inds[c];
+            s_c = table.start_cosets[c];
+            e_c = table.end_cosets[c];
+            i_c = table.init_cosets[c];
 
-            for (unsigned int c = 0; c < table.num_rows; c++) {
-                auto s_i = table.start_inds[c];
-                auto e_i = table.end_inds[c];
-                auto s_c = table.start_cosets[c];
-                auto e_c = table.end_cosets[c];
-                auto i_c = table.init_cosets[c];
-
-                int g_i = s_i & 1;
-                Gen g = gens[g_i];
-                while (s_i < e_i) {
-                    const int lookup = cosets[g + s_c*ngens];
-                    if (lookup < 0) break;
-                    g_i = 1-g_i;
-                    g = gens[g_i];
-
-                    s_i++;
-                    s_c = lookup;
-
-                    if (s_c > i_c) {
-                        int idx = table.coset_poss[s_c];
-                        if (idx >= 0)
-                            table.rem_row(idx); 
-                    }
-                }
-
-                table.start_inds[c] = s_i;
-                table.start_cosets[c] = s_c;
-
-                g_i = e_i & 1;
+            g_i = s_i & 1;
+            g = gens[g_i];
+            while (s_i < e_i) {
+                lookup = cosets[g + s_c*ngens];
+                if (lookup < 0) break;
+                g_i = 1-g_i;
                 g = gens[g_i];
-                while (s_i < e_i) {
-                    const int lookup = cosets[g + e_c*ngens];
-                    if (lookup < 0) break;
-                    g_i = 1-g_i;
-                    g = gens[g_i];
 
-                    e_i--;
-                    e_c = lookup;
+                s_i++;
+                s_c = lookup;
 
-                    if (e_c > i_c) {
-                        int idx = table.coset_poss[e_c];
-                        if (idx >= 0)
-                            table.rem_row(idx);
-                    }
-                }
-
-                table.end_inds[c] = e_i;
-                table.end_cosets[c] = e_c;
-
-                if (s_i == e_i) {
-                    complete = false;
-
-                    const int gen = gens[s_i&1];
-                    cosets[s_c*ngens + gen] = e_c;
-                    cosets[e_c*ngens + gen] = s_c;
-
-                    table.rem_row(c);
-                    c--;
+                if (s_c > i_c) {
+                    idx = table.coset_poss[s_c];
+                    if (idx >= 0)
+                        table.rem_row(idx); 
                 }
             }
-        }
 
-        if (complete) break;
+            table.start_inds[c] = s_i;
+            table.start_cosets[c] = s_c;
+
+            g_i = e_i & 1;
+            g = gens[g_i];
+            while (s_i < e_i) {
+                lookup = cosets[g + e_c*ngens];
+                if (lookup < 0) break;
+                g_i = 1-g_i;
+                g = gens[g_i];
+
+                e_i--;
+                e_c = lookup;
+
+                if (e_c > i_c) {
+                    idx = table.coset_poss[e_c];
+                    if (idx >= 0)
+                        table.rem_row(idx);
+                }
+            }
+
+            table.end_inds[c] = e_i;
+            table.end_cosets[c] = e_c;
+
+            if (s_i == e_i) {
+                g = gens[s_i&1];
+                cosets[s_c*ngens + g] = e_c;
+                cosets[e_c*ngens + g] = s_c;
+
+                table.rem_row(c);
+                c--;
+            }
+        }
     }
 }
 
