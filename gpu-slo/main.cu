@@ -57,12 +57,12 @@ struct Solver {
     
     __device__
     void operator()(Row &r) {
-        if (r.r - r.l <= 1) {
+        if (r.r - r.l <= 0) {
             r.learning = false;
             return;
         }
         
-        while (r.r - r.l > 1) {
+        while (r.r - r.l > 0) {
             int gen = rels[r.rel].gens[r.l & 1];
             int next = cosets[r.from * ngens + gen];
             if (next < 0) break;
@@ -70,7 +70,7 @@ struct Solver {
             r.from = next;
         }
 
-        while (r.r - r.l > 1) {
+        while (r.r - r.l > 0) {
             int gen = rels[r.rel].gens[r.r & 1];
             int next = cosets[r.to * ngens + gen];
             if (next < 0) break;
@@ -78,7 +78,7 @@ struct Solver {
             r.to = next;
         }
             
-        if (r.r - r.l <= 1) { 
+        if (r.r - r.l <= 0) { 
             int gen = rels[r.rel].gens[r.l & 1];
             cosets[r.from * ngens + gen] = r.to;
             cosets[r.to * ngens + gen] = r.from;
@@ -292,11 +292,14 @@ int main(int argc, char* argv[]) {
     thrust::host_vector<int> cosets = solve(ngens, subs, rels);
 
     std::cout << cosets.size() / ngens << " cosets" << std::endl;
+
+    /*
     for (int c = 0; c < cosets.size(); c += ngens) {
         for (int g = c; g < c + ngens; g++ ) {
             std::cout << cosets[g] << " ";
         } std::cout << std::endl;
     }
+    */
 
     return 0;
 }
