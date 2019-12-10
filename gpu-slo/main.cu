@@ -41,6 +41,7 @@ struct Rel {
     int mul;
 };
 
+// this performs a pass on one relation table row, applying learned data to the coset table.
 struct Solver {
     int ngens;
     int *cosets;
@@ -90,6 +91,7 @@ struct Solver {
     }
 };
 
+// this sets the inital row in the coset table based on the subgroup generators
 struct CosetInitializer {
     int *cosets;
 
@@ -103,6 +105,7 @@ struct CosetInitializer {
     }
 };
 
+// this creates rows for cosets by index of each relation table
 struct RowGen {
     Rel *rels;
 
@@ -118,6 +121,7 @@ struct RowGen {
     }
 };
 
+// determines if rows are incomplete; used to remove completed rows
 struct RowIncomplete {
     __device__
     bool operator()(Row r) {
@@ -125,6 +129,7 @@ struct RowIncomplete {
     }
 };
 
+// re-set rows to be learning for a next pass
 struct Relearn {
     __device__
     void operator()(Row &r) {
@@ -132,6 +137,7 @@ struct Relearn {
     }
 };
 
+// determine if rows are learning. used for exit condition
 struct Learning {
     __device__
     bool operator()(Row r) {
@@ -139,12 +145,14 @@ struct Learning {
     }
 };
 
+// add a row to the coset table filled with -1
 void add_row(
         int ngens,
         thrust::device_vector<int> &cosets) {
     cosets.resize(cosets.size() + ngens, -1);
 };
 
+// add a new coset to the coset table, picking up where the last call left off.
 // todo: this part is _real_ slow.
 bool add_coset(
         int ngens,
@@ -170,6 +178,7 @@ bool add_coset(
     return false;
 }
 
+// add a row for each relation table for some coset
 void gen_rows(
         int coset,
         thrust::device_vector<Rel> &rels,
@@ -184,6 +193,7 @@ void gen_rows(
             RowGen(coset, rels));
 }
 
+// do everything. data is implicitly passed to the device via device_vector.
 thrust::device_vector<int> solve(
         int ngens,
         thrust::device_vector<int> subs,
@@ -192,30 +202,38 @@ thrust::device_vector<int> solve(
     thrust::device_vector<int> cosets;
     thrust::device_vector<Row> rows;
 
+    // create the inital row and populate it from subs
     add_row(ngens, cosets);
     thrust::for_each(
             thrust::device,
             subs.begin(), subs.end(), 
             CosetInitializer(cosets));
 
+    // generate initial relation table rows for coset 0
     gen_rows(0, rels, rows);
 
+    // these keep track of what progress has been made
     int coset = 0;
     int hint = 0;
 
+    // will break out later
     while (true) {
+        // reset learning=true for all rows.
         thrust::for_each(
                 thrust::device, 
                 rows.begin(), 
                 rows.end(),
                 Relearn());
 
+        // create a solver and apply it until nothing is being learned
         Solver solve(ngens, cosets, rels);
         while (true) {
             thrust::for_each(
                     thrust::device,
                     rows.begin(), rows.end(),
                     solve);
+
+            // if not any row is learning, then break.
             bool r = thrust::any_of(
                     thrust::device,
                     rows.begin(), rows.end(),
@@ -223,20 +241,22 @@ thrust::device_vector<int> solve(
             if (!r) break;
         }
 
+
+        // fails if hint passes the end of the table. in that case, break.
         bool done = add_coset(
                 ngens,
                 &coset, &hint,
                 cosets);
-
         if (done) break;
 
+        // generate relation table rows for new coset
         gen_rows(coset, rels, rows);
 
+        // move completed rows to the end of the list and remove.
         auto cut = thrust::partition(
                 thrust::device, 
                 rows.begin(), rows.end(), 
                 RowIncomplete());
-
         rows.erase(cut, rows.end());
     }
 
