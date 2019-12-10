@@ -4,5 +4,3 @@ main : main.cu util.h
 clean :
 	rm main
 
-run : main
-	./main

@@ -4,8 +4,10 @@
 
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 #include "util.h"
+#include "groups.h"
 
 struct Row {
     int rel;
@@ -35,11 +37,6 @@ struct Row {
 std::ostream &operator<<(std::ostream &o, const Row &r) {
     return o << "Row[" << r.rel << "]{" << r.l << ":" << r.from << "-" << r.to << ":" << r.r << "}(" << r.learning << ")";
 }
-
-struct Rel {
-    int gens[2];
-    int mul;
-};
 
 // this performs a pass on one relation table row, applying learned data to the coset table.
 struct Solver {
@@ -264,42 +261,20 @@ thrust::device_vector<int> solve(
 }
 
 
-int main(int argc, char* argv[]) {
-    // int ngens = 4;
-    // std::vector<Rel> rels = {
-    //     {0, 1, 3},
-    //     {1, 2, 3},
-    //     {2, 3, 3},
-
-    //     {0, 2, 2},
-    //     {1, 2, 2},
-    //     {1, 3, 2},
-    // };
-    // std::vector<int> subs = {};
-
-    int ngens = 4;
-    std::vector<Rel> rels = {
-        {0, 1, 4},
-        {1, 2, 3},
-        {2, 3, 3},
-
-        {0, 2, 2},
-        {1, 3, 2},
-        {0, 3, 2},
-    };
+int main(int argc, const char* argv[]) {
+    Coxeter cox;
+    cox = proc_args(argc, argv);
     std::vector<int> subs = {};
 
-    thrust::host_vector<int> cosets = solve(ngens, subs, rels);
+    auto s = std::chrono::system_clock::now();
+    thrust::host_vector<int> cosets = solve(cox.ngens, subs, cox.rels);
+    auto e = std::chrono::system_clock::now();
 
-    std::cout << cosets.size() / ngens << " cosets" << std::endl;
+    std::chrono::duration<float> diff = e - s;
+    int order = cosets.size() / cox.ngens;
 
-    /*
-    for (int c = 0; c < cosets.size(); c += ngens) {
-        for (int g = c; g < c + ngens; g++ ) {
-            std::cout << cosets[g] << " ";
-        } std::cout << std::endl;
-    }
-    */
+    // type, arg, ngens, time, order
+    std::cout << cox.ngens << ',' << diff.count() << ',' << order << std::endl;
 
     return 0;
 }
