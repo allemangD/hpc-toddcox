@@ -52,9 +52,9 @@ struct Solver {
     
     __device__
     void operator()(Row &r) {
-        if (r.l + 1 >= r.r) return;
+        if (r.r - r.l <= 1) return;
         
-        while ((r.r - r.l) > 0) {
+        while (r.r - r.l > 1) {
             int gen = rels[r.rel].gens[r.l & 1];
             int next = cosets[r.from * ngens + gen];
             if (next < 0) break;
@@ -62,7 +62,7 @@ struct Solver {
             r.from = next;
         }
 
-        while ((r.r - r.l) > 0) {
+        while (r.r - r.l > 1) {
             int gen = rels[r.rel].gens[r.r & 1];
             int next = cosets[r.to * ngens + gen];
             if (next < 0) break;
@@ -70,7 +70,7 @@ struct Solver {
             r.to = next;
         }
             
-        if (r.r - r.l == 0) {
+        if (r.r - r.l <= 1) { 
             int gen = rels[r.rel].gens[r.l & 1];
             cosets[r.from * ngens + gen] = r.to;
             cosets[r.to * ngens + gen] = r.from;
@@ -103,6 +103,13 @@ struct RowGen {
     __device__
     Row operator()(int rel) {
         return Row(rel, coset, rels[rel].mul * 2);
+    }
+};
+
+struct RowIncomplete {
+    __device__
+    bool operator()(Row r) {
+        return r.r - r.l > 1;
     }
 };
 
@@ -173,31 +180,11 @@ thrust::device_vector<int> solve(
         thrust::for_each(rows.begin(), rows.end(), solve);
     }
 
-    std::cout << thrust::host_vector<Row>(rows) << std::endl;
-
-    /*
-
-    add_coset(ngens, &coset, &hint, cosets);
-
-    std::cout << coset << " " << hint << std::endl;
-
-    std::cout << rows << std::endl;
-
-    thrust::counting_iterator<int> counter(0);
-
-    thrust::device_vector<Row> new_rows(rels.size());
-    thrust::transform(counter, counter + rels.size(), new_rows.begin(),
-        RowGen(lastCoset, rels));
-    rows.insert(rows.begin(), new_rows.begin(), new_rows.end());
-
-    std::cout << rows << std::endl;
-
-    Solver solv(ngens, cosets, rels);
-
-    std::cout << thrust::host_vector<Row>(rows) << std::endl;
-    thrust::for_each(rows.begin(), rows.end(), solv);
-    std::cout << thrust::host_vector<Row>(rows) << std::endl;
-    */
+    auto cut = thrust::partition(
+            thrust::device, 
+            rows.begin(), rows.end(), 
+            RowIncomplete());
+    rows.erase(cut, rows.end());
 
     return cosets;
 }
