@@ -16,10 +16,8 @@ struct Row {
 
     int from, to;
 
-    bool learning;
-
     __host__ __device__
-    Row() : rel(0), l(0), r(0), from(0), to(0), learning(true) {}
+    Row() : rel(0), l(0), r(0), from(0), to(0) {}
 
     __device__
     Row(int rel, int cos, int size) {
@@ -29,13 +27,11 @@ struct Row {
         from = to = cos;
         
         this->rel = rel;
-
-        learning = true;
     }
 };
 
 std::ostream &operator<<(std::ostream &o, const Row &r) {
-    return o << "Row[" << r.rel << "]{" << r.l << ":" << r.from << "-" << r.to << ":" << r.r << "}(" << r.learning << ")";
+    return o << "Row[" << r.rel << "]{" << r.l << ":" << r.from << "-" << r.to << ":" << r.r << "}";
 }
 
 // this performs a pass on one relation table row, applying learned data to the coset table.
@@ -55,7 +51,6 @@ struct Solver {
     __device__
     void operator()(Row &r) {
         if (r.r - r.l <= 0) {
-            r.learning = false;
             return;
         }
         
@@ -79,12 +74,8 @@ struct Solver {
             int gen = rels[r.rel].gens[r.l & 1];
             cosets[r.from * ngens + gen] = r.to;
             cosets[r.to * ngens + gen] = r.from;
-
-            r.learning = true;
             return;
         }
-
-        r.learning = false;
     }
 };
 
@@ -123,22 +114,6 @@ struct RowIncomplete {
     __device__
     bool operator()(Row r) {
         return r.r - r.l > 1;
-    }
-};
-
-// re-set rows to be learning for a next pass
-struct Relearn {
-    __device__
-    void operator()(Row &r) {
-        r.learning = true;
-    }
-};
-
-// determine if rows are learning. used for exit condition
-struct Learning {
-    __device__
-    bool operator()(Row r) {
-        return r.learning;
     }
 };
 
@@ -215,29 +190,12 @@ thrust::device_vector<int> solve(
 
     // will break out later
     while (true) {
-        // reset learning=true for all rows.
-        thrust::for_each(
-                thrust::device, 
-                rows.begin(), 
-                rows.end(),
-                Relearn());
-
         // create a solver and apply it until nothing is being learned
         Solver solve(ngens, cosets, rels);
-        while (true) {
-            thrust::for_each(
-                    thrust::device,
-                    rows.begin(), rows.end(),
-                    solve);
-
-            // if not any row is learning, then break.
-            bool r = thrust::any_of(
-                    thrust::device,
-                    rows.begin(), rows.end(),
-                    Learning());
-            if (!r) break;
-        }
-
+        thrust::for_each(
+                thrust::device,
+                rows.begin(), rows.end(),
+                solve);
 
         // fails if hint passes the end of the table. in that case, break.
         bool done = add_coset(
