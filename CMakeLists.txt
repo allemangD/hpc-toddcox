@@ -5,3 +5,5 @@ add_subdirectory(common)
 
 add_subdirectory(cpu-slo)
 add_subdirectory(cpu-opt)
+
+add_subdirectory(gpu-slo)
