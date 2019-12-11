@@ -131,13 +131,14 @@ bool add_coset(
         int *coset,
         int *hint,
         thrust::device_vector<int> &dcosets) {
-    thrust::host_vector<int> cosets = dcosets;
-    *coset = cosets.size() / ngens;
+    int offset = *hint;
+    thrust::host_vector<int> cosets(dcosets.begin() + offset, dcosets.end());
+    *coset = dcosets.size() / ngens;
 
     // todo: this part especially.
-    while (cosets[*hint] >= 0) {
+    while (cosets[*hint - offset] >= 0) {
         *hint = *hint + 1;
-        if (*hint >= cosets.size()) 
+        if (*hint - offset >= cosets.size()) 
             return true;
     }
     int from = *hint / ngens;
