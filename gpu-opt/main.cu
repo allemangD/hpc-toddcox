@@ -47,31 +47,31 @@ struct Solver {
     }
     
     __device__
-    void operator()(Row &r) {
-        if (r.r - r.l <= 0) {
+    void operator()(Row &row) {
+        if (row.r - row.l <= 0) {
             return;
         }
         
-        while (r.r - r.l > 0) {
-            int gen = c_rels[r.rel].gens[r.l & 1];
-            int next = cosets[r.from * *c_ngens + gen];
+        while (row.r - row.l > 0) {
+            int gen = c_rels[row.rel].gens[row.l & 1];
+            int next = cosets[row.from * c_ngens[0] + gen];
             if (next < 0) break;
-            r.l++;
-            r.from = next;
+            row.l++;
+            row.from = next;
         }
 
-        while (r.r - r.l > 0) {
-            int gen = c_rels[r.rel].gens[r.r & 1];
-            int next = cosets[r.to * *c_ngens + gen];
+        while (row.r - row.l > 0) {
+            int gen = c_rels[row.rel].gens[row.r & 1];
+            int next = cosets[row.to * c_ngens[0] + gen];
             if (next < 0) break;
-            r.r--;
-            r.to = next;
+            row.r--;
+            row.to = next;
         }
             
-        if (r.r - r.l <= 0) { 
-            int gen = c_rels[r.rel].gens[r.l & 1];
-            cosets[r.from * *c_ngens + gen] = r.to;
-            cosets[r.to * *c_ngens + gen] = r.from;
+        if (row.r - row.l <= 0) { 
+            int gen = c_rels[row.rel].gens[row.l & 1];
+            cosets[row.from * c_ngens[0] + gen] = row.to;
+            cosets[row.to * c_ngens[0] + gen] = row.from;
             return;
         }
     }
