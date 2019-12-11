@@ -47,7 +47,9 @@ struct Solver {
     }
     
     __device__
-    void operator()(Row &row) {
+    void operator()(Row &drow) {
+        Row row = drow;
+
         if (row.r - row.l <= 0) {
             return;
         }
@@ -67,6 +69,8 @@ struct Solver {
             row.r--;
             row.to = next;
         }
+
+        drow = row;
             
         if (row.r - row.l <= 0) { 
             int gen = c_rels[row.rel].gens[row.l & 1];
