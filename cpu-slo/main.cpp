@@ -8,6 +8,123 @@
 using Gens=std::vector<int>;
 using Table=std::vector<Gens>;
 
+struct Mult {
+    int from, to, multiplicity;
+    Mult() {}
+    Mult(int from, int to, int multiplicity): from(from), to(to), multiplicity(multiplicity) {}
+};
+
+Table mults(const std::vector<Mult>& ms) {
+    Table res;
+    for (const auto &m : ms) {
+        int N = res.size();
+        res.emplace_back(m.multiplicity * 2, m.to);
+        for (int i = 0; i < m.multiplicity * 2; i += 2) {
+            res[N][i] = m.from;
+        }
+    }
+    return res;
+}
+
+std::vector<Mult> ezmults(int ngens, const std::vector<Mult> &ms) {
+    bool table[ngens][ngens];
+
+    for (int i = 0; i < ngens; i++) {
+        for (int j = 0; j < ngens; j++) {
+            table[i][j] = false;
+        }
+    }
+
+    for (const auto &m : ms) {
+        table[m.from][m.to] = true;
+        table[m.to][m.from] = true;
+    }
+
+    std::vector<Mult> res(ms);
+
+    for (int i = 0; i < ngens; i++) {
+        for (int j = i + 1; j < ngens; j++) {
+            if (!table[i][j]) {
+                res.push_back({i, j, 2});
+            }
+        }
+    }
+
+    return res;
+}
+
+/*
+ * Order 4*res*res
+ */
+std::pair<Table, int> torus(int res) {
+    return std::make_pair(mults(ezmults(4, {
+        {0, 1, res},
+        {2, 3, res},
+    })), 4);
+}
+
+std::pair<Table, int> hypercube(int dim) {
+    std::vector<Mult> hc_mults;
+    hc_mults.emplace_back(0,1,4);
+    for (int i = 2; i < dim; i++) {
+        hc_mults.emplace_back(i-1, i, 3);
+    }
+    return std::make_pair(mults(ezmults(dim,hc_mults)), dim); 
+}
+
+/*
+ * Order 14,400
+ */
+std::pair<Table, int> H4() {
+    return std::make_pair(mults(ezmults(4, {
+        {0, 1, 5},
+        {1, 2, 3},
+        {2, 3, 3},
+    })), 4);
+}
+
+/*
+ * Order 51,840
+ */
+std::pair<Table, int> E6() {
+    return std::make_pair(mults(ezmults(6, {
+        {0, 1, 3},
+        {1, 2, 3},
+        {2, 3, 3},
+        {2, 4, 3},
+        {4, 5, 3},
+    })), 6);
+}
+
+/*
+ * Order 2,903,040
+ */
+std::pair<Table, int> E7() {
+    return std::make_pair(mults(ezmults(7, {
+        {0, 1, 3},
+        {1, 2, 3},
+        {2, 3, 3},
+        {2, 4, 3},
+        {4, 5, 3},
+        {5, 6, 3},
+    })), 7);
+}
+
+/*
+ * Order 696,729,600
+ */
+std::pair<Table, int> E8() {
+    return std::make_pair(mults(ezmults(8, {
+        {0, 1, 3},
+        {1, 2, 3},
+        {2, 3, 3},
+        {2, 4, 3},
+        {4, 5, 3},
+        {5, 6, 3},
+        {6, 7, 3},
+    })), 8);
+}
+
 void pp(const Gens &g, int w) {
     for (const auto &e : g) {
         std::cout << std::setw(w) << e << " ";
@@ -149,144 +266,47 @@ Table solve_tc(int ngens, const Gens &subgens, const std::vector<Gens> &rels) {
     return cosets;
 }
 
-struct Mult {
-    int from, to, multiplicity;
-};
-
-Table mults(std::vector<Mult> ms) {
-    Table res;
-    for (const auto &m : ms) {
-	     int N = res.size();
-        res.emplace_back(m.multiplicity * 2, m.to);
-        for (int i = 0; i < m.multiplicity * 2; i += 2) {
-            res[N][i] = m.from;
-        }
-    }
-    return res;
-}
-
-Table ezmults(int ngens, std::vector<Mult> ms) {
-   bool table[ngens][ngens];
-
-   for (int i=0; i<ngens; i++) {
-      for (int j=0; j<ngens; j++) {
-         table[i][j] = false;
-      }
-   }
-
-   for (const auto &m : ms) {
-      table[m.from][m.to] = true;
-      table[m.to][m.from] = true;
-   }
-
-   Table res = mults(ms);
-   for (int i=0; i<ngens; i++) {
-      for (int j=i+1; j<ngens; j++) {
-         if (!table[i][j]) {
-            res.push_back({i,j,i,j});
-         }
-      }
-   }
-   return res;
-}
-
-/*
- * Order 4*res*res
- */
-std::pair<Table,int> torus(int res) {
-    return std::make_pair(ezmults(4,{
-        {0,1,res},
-        {2,3,res},
-    }),4);
-}
-
-/*
- * Order 14,400
- */
-std::pair<Table,int> H4() {
-   return std::make_pair(ezmults(4,{
-      {0,1,5},
-      {1,2,3},
-      {2,3,3},
-   }),4);
-}
-
-/*
- * Order 51,840
- */
-std::pair<Table,int> E6() {
-   return std::make_pair(ezmults(6,{
-      {0,1,3},
-      {1,2,3},
-      {2,3,3},
-      {2,4,3},
-      {4,5,3},
-   }),6);
-}
-
-/*
- * Order 2,903,040
- */
-std::pair<Table,int> E7() {
-   return std::make_pair(ezmults(7,{
-      {0,1,3},
-      {1,2,3},
-      {2,3,3},
-      {2,4,3},
-      {4,5,3},
-      {5,6,3},
-   }),7);
-}
-
-/*
- * Order 696,729,600
- */
-std::pair<Table,int> E8() {
-   return std::make_pair(ezmults(8,{
-      {0,1,3},
-      {1,2,3},
-      {2,3,3},
-      {2,4,3},
-      {4,5,3},
-      {5,6,3},
-      {6,7,3},
-   }),8);
-}
-
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
     if (argc < 2) {
-        std::cerr << "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" << std::endl;
-        std::cerr << "gimme more ~~tendies~~ arguments" << std::endl;
+        std::cerr << "missing type argument." << std::endl;
         return 1;
     }
 
     int type = std::strtol(argv[1], nullptr, 10);
-    int arg = 0;
-    std::pair<Table,int> res;
+    int arg = -1;
+    std::pair<Table, int> res;
     switch (type) {
-      case 0:
-         if (argc < 3) {
+    case 0:
+        if (argc < 3) {
             std::cerr << "Must provide a size for torus!" << std::endl;
             return 2;
-         }
-         arg = std::strtol(argv[2], nullptr, 10);
-         res = torus(arg);
-         break;
-      case 1:
-         res = H4();
-         break;
-      case 2:
-         res = E6();
-         break;
-      case 3:
-         res = E7();
-         break;
-      case 4:
-         res = E8();
-         break;
-      default:
-         std::cerr << "Not a valid type!" << std::endl;
-         return 3;
+        }
+        arg = std::strtol(argv[2], nullptr, 10);
+        res = torus(arg);
+        break;
+    case 1:
+        res = H4();
+        break;
+    case 2:
+        res = E6();
+        break;
+    case 3:
+        res = E7();
+        break;
+    case 4:
+        res = E8();
+        break;
+    case 5:
+        if (argc < 3) {
+            std::cerr << "Must provide a dimension for hypercube!" << std::endl;
+            return 3;
+        }
+        arg = std::strtol(argv[2], nullptr, 10);
+        res = hypercube(arg);
+        break;
+    default:
+        std::cerr << "Not a valid type!" << std::endl;
+        return 3;
     }
 
     const Table &rels = res.first;
@@ -300,7 +320,7 @@ int main(int argc, char *argv[]) {
     size_t order = cosets.size();
 
     // ngens,type,arg,time,order
-    std::cout << ngens << ',' << type << ',' << arg  << ',' << diff.count() << ',' << order << std::endl;
+    std::cout << type << ',' << arg << ',' << ngens << ',' << diff.count() << ',' << order << std::endl;
 
     return 0;
 }
