@@ -125,7 +125,6 @@ void add_row(
 };
 
 // add a new coset to the coset table, picking up where the last call left off.
-// todo: this part is _real_ slow.
 bool add_coset(
         int ngens,
         int *coset,
@@ -135,7 +134,6 @@ bool add_coset(
     thrust::host_vector<int> cosets(dcosets.begin() + offset, dcosets.end());
     *coset = dcosets.size() / ngens;
 
-    // todo: this part especially.
     while (cosets[*hint - offset] >= 0) {
         *hint = *hint + 1;
         if (*hint - offset >= cosets.size()) 
