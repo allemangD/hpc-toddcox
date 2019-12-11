@@ -1,4 +1,4 @@
-IN='./main'
+MAIN='./main'
 
 echo "type,arg,nrels,secs,cosets"
 
