@@ -1,5 +1,5 @@
 main : main.cu util.h
-	nvcc -o main -std=c++11 main.cu
+	nvcc -o main -std=c++11 -O3 main.cu
 
 clean :
 	rm main
